@@ -13,7 +13,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install SDL2
       run: sudo apt-get -y install libsdl2-dev
     - name: Build
@@ -24,7 +24,7 @@ jobs:
   lint: 
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install SDL2
       run: sudo apt-get -y install libsdl2-dev
     - name: Install Clippy
@@ -35,7 +35,7 @@ jobs:
   formatting: 
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install SDL2
       run: sudo apt-get -y install libsdl2-dev
     - name: Install rustfmt
