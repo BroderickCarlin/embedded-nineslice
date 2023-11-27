@@ -10,4 +10,4 @@ embedded-graphics = "0.8"
 
 [dev-dependencies]
 tinybmp = "0.5"
-embedded-graphics-simulator = "0.5"
+embedded-graphics-simulator = "0.6"
