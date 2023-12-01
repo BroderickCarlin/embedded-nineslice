@@ -5,6 +5,20 @@ use embedded_graphics::{
     primitives::Rectangle,
 };
 
+enum Corner {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
+enum Edge {
+    Top,
+    Right,
+    Bottom,
+    Left,
+}
+
 pub struct NineSliceConfig {
     pub size: Size,
     pub left_width: u32,
@@ -26,6 +40,152 @@ impl<'a, I> NineSlice<'a, I> {
             config,
         }
     }
+
+    fn draw_corner<D>(&self, corner: Corner, target: &mut D) -> Result<(), D::Error>
+    where
+        I: ImageDrawable,
+        D: DrawTarget<Color = I::Color>,
+    {
+        // Calculate the translation and area we want to draw depending on which corner it is
+        let (translate, area) = match corner {
+            Corner::TopLeft => (
+                Point::zero(),
+                Rectangle::new(
+                    Point::zero(),
+                    Size::new(self.config.left_width, self.config.top_height),
+                ),
+            ),
+            Corner::TopRight => (
+                Point::new(
+                    self.config.size.width as i32 - self.config.right_width as i32,
+                    0,
+                ),
+                Rectangle::new(
+                    Point::new(
+                        self.template_image.size().width as i32 - self.config.right_width as i32,
+                        0,
+                    ),
+                    Size::new(self.config.right_width, self.config.top_height),
+                ),
+            ),
+            Corner::BottomRight => (
+                Point::new(
+                    self.config.size.width as i32 - self.config.right_width as i32,
+                    self.config.size.height as i32 - self.config.bottom_height as i32,
+                ),
+                Rectangle::new(
+                    Point::new(
+                        self.template_image.size().width as i32 - self.config.right_width as i32,
+                        self.template_image.size().height as i32 - self.config.bottom_height as i32,
+                    ),
+                    Size::new(self.config.right_width, self.config.bottom_height),
+                ),
+            ),
+            Corner::BottomLeft => (
+                Point::new(
+                    0,
+                    self.config.size.height as i32 - self.config.bottom_height as i32,
+                ),
+                Rectangle::new(
+                    Point::new(
+                        0,
+                        self.template_image.size().height as i32 - self.config.bottom_height as i32,
+                    ),
+                    Size::new(self.config.left_width, self.config.bottom_height),
+                ),
+            ),
+        };
+
+        // Actually draw it
+        self.template_image
+            .draw_sub_image(&mut target.translated(translate), &area)
+    }
+
+    fn draw_edge<D>(&self, edge: Edge, target: &mut D) -> Result<(), D::Error>
+    where
+        I: ImageDrawable,
+        D: DrawTarget<Color = I::Color>,
+    {
+        let (mut edge_len, block_len) = match edge {
+            Edge::Top | Edge::Bottom => (
+                self.config.size.width - self.config.left_width - self.config.right_width,
+                self.template_image.size().width - self.config.left_width - self.config.right_width,
+            ),
+            Edge::Right | Edge::Left => (
+                self.config.size.height - self.config.top_height - self.config.bottom_height,
+                self.template_image.size().height
+                    - self.config.top_height
+                    - self.config.bottom_height,
+            ),
+        };
+
+        let (mut translation, top_left) = match edge {
+            Edge::Top => (
+                Point::new(self.config.left_width as i32, 0),
+                Point::new(self.config.left_width as i32, 0),
+            ),
+            Edge::Right => (
+                Point::new(
+                    self.config.size.width as i32 - self.config.right_width as i32,
+                    self.config.top_height as i32,
+                ),
+                Point::new(
+                    self.template_image.size().width as i32 - self.config.right_width as i32,
+                    self.config.top_height as i32,
+                ),
+            ),
+            Edge::Bottom => (
+                Point::new(
+                    self.config.left_width as i32,
+                    self.config.size.height as i32 - self.config.bottom_height as i32,
+                ),
+                Point::new(
+                    self.config.left_width as i32,
+                    self.template_image.size().height as i32 - self.config.bottom_height as i32,
+                ),
+            ),
+            Edge::Left => (
+                Point::new(0, self.config.top_height as i32),
+                Point::new(0, self.config.top_height as i32),
+            ),
+        };
+
+        while edge_len > 0 {
+            let paint_len = block_len.min(edge_len);
+            self.template_image.draw_sub_image(
+                &mut target.translated(translation),
+                &Rectangle::new(
+                    top_left,
+                    match edge {
+                        Edge::Top => Size::new(paint_len, self.config.top_height),
+                        Edge::Right => Size::new(self.config.right_width, paint_len),
+                        Edge::Bottom => Size::new(paint_len, self.config.bottom_height),
+                        Edge::Left => Size::new(self.config.left_width, paint_len),
+                    },
+                ),
+            )?;
+
+            translation += match edge {
+                Edge::Top | Edge::Bottom => Point::new(paint_len as i32, 0),
+                Edge::Left | Edge::Right => Point::new(0, paint_len as i32),
+            };
+
+            edge_len -= paint_len;
+        }
+
+        Ok(())
+    }
+
+    fn draw_center<D>(&self, _target: &mut D) -> Result<(), D::Error>
+    where
+        I: ImageDrawable,
+        D: DrawTarget<Color = I::Color>,
+    {
+        if self.config.fill_center {
+            todo!()
+        }
+        Ok(())
+    }
 }
 
 impl<'a, I> OriginDimensions for NineSlice<'a, I> {
@@ -44,164 +204,20 @@ where
     where
         D: DrawTarget<Color = Self::Color> + DrawTargetExt,
     {
-        // Start by drawing the top left
-        self.template_image.draw_sub_image(
-            target,
-            &Rectangle::new(
-                Point::zero(),
-                Size::new(self.config.left_width, self.config.top_height),
-            ),
-        )?;
+        // Start with corners
+        self.draw_corner(Corner::TopLeft, target)?;
+        self.draw_corner(Corner::TopRight, target)?;
+        self.draw_corner(Corner::BottomRight, target)?;
+        self.draw_corner(Corner::BottomLeft, target)?;
 
-        // Draw the top right
-        self.template_image.draw_sub_image(
-            &mut target.translated(Point::new(
-                self.config.size.width as i32 - self.config.right_width as i32,
-                0,
-            )),
-            &Rectangle::new(
-                Point::new(
-                    self.template_image.size().width as i32 - self.config.right_width as i32,
-                    0,
-                ),
-                Size::new(self.config.right_width, self.config.top_height),
-            ),
-        )?;
-
-        // Draw the bottom right
-        self.template_image.draw_sub_image(
-            &mut target.translated(Point::new(
-                self.config.size.width as i32 - self.config.right_width as i32,
-                self.config.size.height as i32 - self.config.bottom_height as i32,
-            )),
-            &Rectangle::new(
-                Point::new(
-                    self.template_image.size().width as i32 - self.config.right_width as i32,
-                    self.template_image.size().height as i32 - self.config.bottom_height as i32,
-                ),
-                Size::new(self.config.right_width, self.config.bottom_height),
-            ),
-        )?;
-
-        // Draw the bottom left
-        self.template_image.draw_sub_image(
-            &mut target.translated(Point::new(
-                0,
-                self.config.size.height as i32 - self.config.bottom_height as i32,
-            )),
-            &Rectangle::new(
-                Point::new(
-                    0,
-                    self.template_image.size().height as i32 - self.config.bottom_height as i32,
-                ),
-                Size::new(self.config.left_width, self.config.bottom_height),
-            ),
-        )?;
-
-        // Move on to drawing the edges
-
-        // Draw the top edge
-        let mut edge_len =
-            self.config.size.width - self.config.left_width - self.config.right_width;
-        let block_len =
-            self.template_image.size().width - self.config.left_width - self.config.right_width;
-        let mut translation = Point::new(self.config.left_width as i32, 0);
-        while edge_len > 0 {
-            let paint_len = block_len.min(edge_len);
-            self.template_image.draw_sub_image(
-                &mut target.translated(translation),
-                &Rectangle::new(
-                    Point::new(self.config.left_width as i32, 0),
-                    Size::new(paint_len, self.config.top_height),
-                ),
-            )?;
-
-            translation += Point::new(paint_len as i32, 0);
-
-            edge_len -= paint_len;
-        }
-
-        // Draw the right edge
-        let mut edge_len =
-            self.config.size.height - self.config.top_height - self.config.bottom_height;
-        let block_len =
-            self.template_image.size().height - self.config.top_height - self.config.bottom_height;
-        let mut translation = Point::new(
-            self.config.size.width as i32 - self.config.right_width as i32,
-            self.config.top_height as i32,
-        );
-        while edge_len > 0 {
-            let paint_len = block_len.min(edge_len);
-            self.template_image.draw_sub_image(
-                &mut target.translated(translation),
-                &Rectangle::new(
-                    Point::new(
-                        self.template_image.size().width as i32 - self.config.right_width as i32,
-                        self.config.top_height as i32,
-                    ),
-                    Size::new(self.config.right_width, paint_len),
-                ),
-            )?;
-
-            translation += Point::new(0, paint_len as i32);
-
-            edge_len -= paint_len;
-        }
-
-        // Draw the bottom edge
-        let mut edge_len =
-            self.config.size.width - self.config.left_width - self.config.right_width;
-        let block_len =
-            self.template_image.size().width - self.config.left_width - self.config.right_width;
-        let mut translation = Point::new(
-            self.config.left_width as i32,
-            self.config.size.height as i32 - self.config.bottom_height as i32,
-        );
-        while edge_len > 0 {
-            let paint_len = block_len.min(edge_len);
-            self.template_image.draw_sub_image(
-                &mut target.translated(translation),
-                &Rectangle::new(
-                    Point::new(
-                        self.config.left_width as i32,
-                        self.template_image.size().height as i32 - self.config.bottom_height as i32,
-                    ),
-                    Size::new(paint_len, self.config.top_height),
-                ),
-            )?;
-
-            translation += Point::new(paint_len as i32, 0);
-
-            edge_len -= paint_len;
-        }
-
-        // Draw the left edge
-        let mut edge_len =
-            self.config.size.height - self.config.top_height - self.config.bottom_height;
-        let block_len =
-            self.template_image.size().height - self.config.top_height - self.config.bottom_height;
-        let mut translation = Point::new(0, self.config.top_height as i32);
-        while edge_len > 0 {
-            let paint_len = block_len.min(edge_len);
-            self.template_image.draw_sub_image(
-                &mut target.translated(translation),
-                &Rectangle::new(
-                    Point::new(0, self.config.top_height as i32),
-                    Size::new(self.config.left_width, paint_len),
-                ),
-            )?;
-
-            translation += Point::new(0, paint_len as i32);
-
-            edge_len -= paint_len;
-        }
+        // Then do edges
+        self.draw_edge(Edge::Top, target)?;
+        self.draw_edge(Edge::Right, target)?;
+        self.draw_edge(Edge::Bottom, target)?;
+        self.draw_edge(Edge::Left, target)?;
 
         // Do the center
-        if self.config.fill_center {
-            todo!()
-        }
-
-        Ok(())
+        self.draw_center(target)
     }
 
     fn draw_sub_image<D>(&self, _target: &mut D, _area: &Rectangle) -> Result<(), D::Error>

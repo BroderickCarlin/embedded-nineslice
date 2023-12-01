@@ -60,14 +60,13 @@ fn main() {
     border_image.draw(&mut display).unwrap();
 
     let spacing = 15;
+    let x_inset = 97;
     let mut offset = 20;
 
-    let menu_items = &[
-        "POKeDEX", "POKeMON", "ITEM", "ASH", "SAVE", "OPTION", "EXIT",
-    ];
+    let menu_items = &["MONSTERS", "PARTY", "ITEM", "ME", "SAVE", "OPTION", "EXIT"];
 
     for item in menu_items {
-        draw_text(item, Point::new(100, offset), &mut display);
+        draw_text(item, Point::new(x_inset, offset), &mut display);
         offset += spacing
     }
 
