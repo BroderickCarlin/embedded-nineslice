@@ -7,7 +7,7 @@ use embedded_graphics::{
     text::{Alignment, Baseline, Text, TextStyleBuilder},
 };
 use embedded_graphics_simulator::{OutputSettingsBuilder, SimulatorDisplay, Window};
-use embedded_nineslice::{NineSlice, NineSliceConfig};
+use embedded_nineslice::{Config, NineSlice};
 use tinybmp::Bmp;
 
 const BORDER_IMAGE_RAW: &[u8] = include_bytes!("border.bmp");
@@ -44,12 +44,12 @@ fn main() {
 
     let border_bmp = Bmp::from_slice(BORDER_IMAGE_RAW).unwrap();
 
-    let cfg = NineSliceConfig {
+    let cfg = Config {
         size: Size::new(80, 128),
-        left_width: 8,
-        top_height: 8,
-        right_width: 8,
-        bottom_height: 8,
+        left: 8,
+        top: 8,
+        right: 8,
+        bottom: 8,
         fill_center: false,
     };
 
